@@ -1,12 +1,12 @@
 
 module stdlib_math
-    use stdlib_kinds, only: int8, int16, int32, int64, sp, dp, qp
+    use stdlib_kinds, only: int8, int16, int32, int64, sp, dp, xdp, qp
     use stdlib_optval, only: optval
 
     implicit none
     private
     public :: clip, gcd, linspace, logspace
-    public :: EULERS_NUMBER_SP, EULERS_NUMBER_DP, EULERS_NUMBER_QP
+    public :: EULERS_NUMBER_SP, EULERS_NUMBER_DP
     public :: DEFAULT_LINSPACE_LENGTH, DEFAULT_LOGSPACE_BASE, DEFAULT_LOGSPACE_LENGTH
     public :: arange
 
@@ -17,7 +17,6 @@ module stdlib_math
     ! Useful constants for lnspace
     real(sp), parameter :: EULERS_NUMBER_SP = exp(1.0_sp)
     real(dp), parameter :: EULERS_NUMBER_DP = exp(1.0_dp)
-    real(qp), parameter :: EULERS_NUMBER_QP = exp(1.0_qp)
 
     interface clip
         module procedure clip_int8
@@ -26,7 +25,6 @@ module stdlib_math
         module procedure clip_int64
         module procedure clip_sp
         module procedure clip_dp
-        module procedure clip_qp
     end interface clip
 
     !> Returns the greatest common divisor of two integers
@@ -47,137 +45,111 @@ module stdlib_math
     !! If the number of elements is not specified, create an array with size 100. If n is a negative value,
     !! return an array with size 0. If n = 1, return an array whose only element is end
     !!([Specification](../page/specs/stdlib_math.html#linspace-create-a-linearly-spaced-rank-one-array))
-      module function linspace_default_1_rsp_rsp(start, end) result(res)
+      pure module function linspace_default_1_rsp_rsp(start, end) result(res)
         real(sp), intent(in) :: start
         real(sp), intent(in) :: end
 
         real(sp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_rsp_rsp
-      module function linspace_default_1_rdp_rdp(start, end) result(res)
+      pure module function linspace_default_1_rdp_rdp(start, end) result(res)
         real(dp), intent(in) :: start
         real(dp), intent(in) :: end
 
         real(dp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_rdp_rdp
-      module function linspace_default_1_rqp_rqp(start, end) result(res)
-        real(qp), intent(in) :: start
-        real(qp), intent(in) :: end
-
-        real(qp) :: res(DEFAULT_LINSPACE_LENGTH)
-      end function linspace_default_1_rqp_rqp
-      module function linspace_default_1_csp_csp(start, end) result(res)
+      pure module function linspace_default_1_csp_csp(start, end) result(res)
         complex(sp), intent(in) :: start
         complex(sp), intent(in) :: end
 
         complex(sp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_csp_csp
-      module function linspace_default_1_cdp_cdp(start, end) result(res)
+      pure module function linspace_default_1_cdp_cdp(start, end) result(res)
         complex(dp), intent(in) :: start
         complex(dp), intent(in) :: end
 
         complex(dp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_cdp_cdp
-      module function linspace_default_1_cqp_cqp(start, end) result(res)
-        complex(qp), intent(in) :: start
-        complex(qp), intent(in) :: end
 
-        complex(qp) :: res(DEFAULT_LINSPACE_LENGTH)
-      end function linspace_default_1_cqp_cqp
-
-      module function linspace_n_1_rsp_rsp(start, end, n) result(res)
+      pure module function linspace_n_1_rsp_rsp(start, end, n) result(res)
         real(sp), intent(in) :: start
         real(sp), intent(in) :: end
         integer, intent(in) :: n
 
         real(sp) :: res(max(n, 0))
       end function linspace_n_1_rsp_rsp
-      module function linspace_n_1_rdp_rdp(start, end, n) result(res)
+      pure module function linspace_n_1_rdp_rdp(start, end, n) result(res)
         real(dp), intent(in) :: start
         real(dp), intent(in) :: end
         integer, intent(in) :: n
 
         real(dp) :: res(max(n, 0))
       end function linspace_n_1_rdp_rdp
-      module function linspace_n_1_rqp_rqp(start, end, n) result(res)
-        real(qp), intent(in) :: start
-        real(qp), intent(in) :: end
-        integer, intent(in) :: n
-
-        real(qp) :: res(max(n, 0))
-      end function linspace_n_1_rqp_rqp
-      module function linspace_n_1_csp_csp(start, end, n) result(res)
+      pure module function linspace_n_1_csp_csp(start, end, n) result(res)
         complex(sp), intent(in) :: start
         complex(sp), intent(in) :: end
         integer, intent(in) :: n
 
         complex(sp) :: res(max(n, 0))
       end function linspace_n_1_csp_csp
-      module function linspace_n_1_cdp_cdp(start, end, n) result(res)
+      pure module function linspace_n_1_cdp_cdp(start, end, n) result(res)
         complex(dp), intent(in) :: start
         complex(dp), intent(in) :: end
         integer, intent(in) :: n
 
         complex(dp) :: res(max(n, 0))
       end function linspace_n_1_cdp_cdp
-      module function linspace_n_1_cqp_cqp(start, end, n) result(res)
-        complex(qp), intent(in) :: start
-        complex(qp), intent(in) :: end
-        integer, intent(in) :: n
-
-        complex(qp) :: res(max(n, 0))
-      end function linspace_n_1_cqp_cqp
 
 
     ! Add support for integer linspace
     !!
     !! When dealing with integers as the `start` and `end` parameters, the return type is always a `real(dp)`.
-      module function linspace_default_1_iint8_iint8(start, end) result(res)
+      pure module function linspace_default_1_iint8_iint8(start, end) result(res)
         integer(int8), intent(in) :: start
         integer(int8), intent(in) :: end
 
         real(dp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_iint8_iint8
-      module function linspace_default_1_iint16_iint16(start, end) result(res)
+      pure module function linspace_default_1_iint16_iint16(start, end) result(res)
         integer(int16), intent(in) :: start
         integer(int16), intent(in) :: end
 
         real(dp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_iint16_iint16
-      module function linspace_default_1_iint32_iint32(start, end) result(res)
+      pure module function linspace_default_1_iint32_iint32(start, end) result(res)
         integer(int32), intent(in) :: start
         integer(int32), intent(in) :: end
 
         real(dp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_iint32_iint32
-      module function linspace_default_1_iint64_iint64(start, end) result(res)
+      pure module function linspace_default_1_iint64_iint64(start, end) result(res)
         integer(int64), intent(in) :: start
         integer(int64), intent(in) :: end
 
         real(dp) :: res(DEFAULT_LINSPACE_LENGTH)
       end function linspace_default_1_iint64_iint64
 
-      module function linspace_n_1_iint8_iint8(start, end, n) result(res)
+      pure module function linspace_n_1_iint8_iint8(start, end, n) result(res)
         integer(int8), intent(in) :: start
         integer(int8), intent(in) :: end
         integer, intent(in) :: n
 
         real(dp) :: res(max(n, 0))
       end function linspace_n_1_iint8_iint8
-      module function linspace_n_1_iint16_iint16(start, end, n) result(res)
+      pure module function linspace_n_1_iint16_iint16(start, end, n) result(res)
         integer(int16), intent(in) :: start
         integer(int16), intent(in) :: end
         integer, intent(in) :: n
 
         real(dp) :: res(max(n, 0))
       end function linspace_n_1_iint16_iint16
-      module function linspace_n_1_iint32_iint32(start, end, n) result(res)
+      pure module function linspace_n_1_iint32_iint32(start, end, n) result(res)
         integer(int32), intent(in) :: start
         integer(int32), intent(in) :: end
         integer, intent(in) :: n
 
         real(dp) :: res(max(n, 0))
       end function linspace_n_1_iint32_iint32
-      module function linspace_n_1_iint64_iint64(start, end, n) result(res)
+      pure module function linspace_n_1_iint64_iint64(start, end, n) result(res)
         integer(int64), intent(in) :: start
         integer(int64), intent(in) :: end
         integer, intent(in) :: n
@@ -196,7 +168,7 @@ module stdlib_math
   !! is specified, logspace will default to using a base of 10
   !!
   !!([Specification](../page/specs/stdlib_math.html#logspace-create-a-logarithmically-spaced-rank-one-array))
-    module function logspace_1_rsp_default(start, end) result(res)
+    pure module function logspace_1_rsp_default(start, end) result(res)
 
       real(sp), intent(in) :: start
       real(sp), intent(in) :: end
@@ -204,7 +176,7 @@ module stdlib_math
       real(sp) :: res(DEFAULT_LOGSPACE_LENGTH)
 
     end function logspace_1_rsp_default
-    module function logspace_1_rdp_default(start, end) result(res)
+    pure module function logspace_1_rdp_default(start, end) result(res)
 
       real(dp), intent(in) :: start
       real(dp), intent(in) :: end
@@ -212,15 +184,7 @@ module stdlib_math
       real(dp) :: res(DEFAULT_LOGSPACE_LENGTH)
 
     end function logspace_1_rdp_default
-    module function logspace_1_rqp_default(start, end) result(res)
-
-      real(qp), intent(in) :: start
-      real(qp), intent(in) :: end
-
-      real(qp) :: res(DEFAULT_LOGSPACE_LENGTH)
-
-    end function logspace_1_rqp_default
-    module function logspace_1_csp_default(start, end) result(res)
+    pure module function logspace_1_csp_default(start, end) result(res)
 
       complex(sp), intent(in) :: start
       complex(sp), intent(in) :: end
@@ -228,7 +192,7 @@ module stdlib_math
       complex(sp) :: res(DEFAULT_LOGSPACE_LENGTH)
 
     end function logspace_1_csp_default
-    module function logspace_1_cdp_default(start, end) result(res)
+    pure module function logspace_1_cdp_default(start, end) result(res)
 
       complex(dp), intent(in) :: start
       complex(dp), intent(in) :: end
@@ -236,15 +200,7 @@ module stdlib_math
       complex(dp) :: res(DEFAULT_LOGSPACE_LENGTH)
 
     end function logspace_1_cdp_default
-    module function logspace_1_cqp_default(start, end) result(res)
-
-      complex(qp), intent(in) :: start
-      complex(qp), intent(in) :: end
-
-      complex(qp) :: res(DEFAULT_LOGSPACE_LENGTH)
-
-    end function logspace_1_cqp_default
-    module function logspace_1_iint32_default(start, end) result(res)
+    pure module function logspace_1_iint32_default(start, end) result(res)
 
       integer, intent(in) :: start
       integer, intent(in) :: end
@@ -253,49 +209,35 @@ module stdlib_math
 
   end function logspace_1_iint32_default
 
-    module function logspace_1_rsp_n(start, end, n) result(res)
+    pure module function logspace_1_rsp_n(start, end, n) result(res)
       real(sp), intent(in) :: start
       real(sp), intent(in) :: end
       integer, intent(in) :: n
 
       real(sp) :: res(max(n, 0))
     end function logspace_1_rsp_n
-    module function logspace_1_rdp_n(start, end, n) result(res)
+    pure module function logspace_1_rdp_n(start, end, n) result(res)
       real(dp), intent(in) :: start
       real(dp), intent(in) :: end
       integer, intent(in) :: n
 
       real(dp) :: res(max(n, 0))
     end function logspace_1_rdp_n
-    module function logspace_1_rqp_n(start, end, n) result(res)
-      real(qp), intent(in) :: start
-      real(qp), intent(in) :: end
-      integer, intent(in) :: n
-
-      real(qp) :: res(max(n, 0))
-    end function logspace_1_rqp_n
-    module function logspace_1_csp_n(start, end, n) result(res)
+    pure module function logspace_1_csp_n(start, end, n) result(res)
       complex(sp), intent(in) :: start
       complex(sp), intent(in) :: end
       integer, intent(in) :: n
 
       complex(sp) :: res(max(n, 0))
     end function logspace_1_csp_n
-    module function logspace_1_cdp_n(start, end, n) result(res)
+    pure module function logspace_1_cdp_n(start, end, n) result(res)
       complex(dp), intent(in) :: start
       complex(dp), intent(in) :: end
       integer, intent(in) :: n
 
       complex(dp) :: res(max(n, 0))
     end function logspace_1_cdp_n
-    module function logspace_1_cqp_n(start, end, n) result(res)
-      complex(qp), intent(in) :: start
-      complex(qp), intent(in) :: end
-      integer, intent(in) :: n
-
-      complex(qp) :: res(max(n, 0))
-    end function logspace_1_cqp_n
-    module function logspace_1_iint32_n(start, end, n) result(res)
+    pure module function logspace_1_iint32_n(start, end, n) result(res)
       integer, intent(in) :: start
       integer, intent(in) :: end
       integer, intent(in) :: n
@@ -307,7 +249,7 @@ module stdlib_math
     ! of sp start and end. [base^start, ... , base^end]
     ! Different combinations of parameter types will lead to different result types.
     ! Those combinations are indicated in the body of each function.
-    module function logspace_1_rsp_n_rbase(start, end, n, base) result(res)
+    pure module function logspace_1_rsp_n_rbase(start, end, n, base) result(res)
       real(sp), intent(in) :: start
       real(sp), intent(in) :: end
       integer, intent(in) :: n
@@ -316,7 +258,7 @@ module stdlib_math
       real(sp) :: res(max(n, 0))
     end function logspace_1_rsp_n_rbase
 
-    module function logspace_1_rsp_n_cbase(start, end, n, base) result(res)
+    pure module function logspace_1_rsp_n_cbase(start, end, n, base) result(res)
       real(sp), intent(in) :: start
       real(sp), intent(in) :: end
       integer, intent(in) :: n
@@ -325,7 +267,7 @@ module stdlib_math
       real(sp) :: res(max(n, 0))
     end function logspace_1_rsp_n_cbase
 
-    module function logspace_1_rsp_n_ibase(start, end, n, base) result(res)
+    pure module function logspace_1_rsp_n_ibase(start, end, n, base) result(res)
       real(sp), intent(in) :: start
       real(sp), intent(in) :: end
       integer, intent(in) :: n
@@ -337,7 +279,7 @@ module stdlib_math
     ! of dp start and end. [base^start, ... , base^end]
     ! Different combinations of parameter types will lead to different result types.
     ! Those combinations are indicated in the body of each function.
-    module function logspace_1_rdp_n_rbase(start, end, n, base) result(res)
+    pure module function logspace_1_rdp_n_rbase(start, end, n, base) result(res)
       real(dp), intent(in) :: start
       real(dp), intent(in) :: end
       integer, intent(in) :: n
@@ -346,7 +288,7 @@ module stdlib_math
       real(dp) :: res(max(n, 0))
     end function logspace_1_rdp_n_rbase
 
-    module function logspace_1_rdp_n_cbase(start, end, n, base) result(res)
+    pure module function logspace_1_rdp_n_cbase(start, end, n, base) result(res)
       real(dp), intent(in) :: start
       real(dp), intent(in) :: end
       integer, intent(in) :: n
@@ -355,7 +297,7 @@ module stdlib_math
       real(dp) :: res(max(n, 0))
     end function logspace_1_rdp_n_cbase
 
-    module function logspace_1_rdp_n_ibase(start, end, n, base) result(res)
+    pure module function logspace_1_rdp_n_ibase(start, end, n, base) result(res)
       real(dp), intent(in) :: start
       real(dp), intent(in) :: end
       integer, intent(in) :: n
@@ -363,41 +305,11 @@ module stdlib_math
       ! real(dp) endpoints + integer base = real(dp) result
       real(dp) :: res(max(n, 0))
     end function logspace_1_rdp_n_ibase
-    ! Generate logarithmically spaced sequence from qp base to the powers
-    ! of qp start and end. [base^start, ... , base^end]
-    ! Different combinations of parameter types will lead to different result types.
-    ! Those combinations are indicated in the body of each function.
-    module function logspace_1_rqp_n_rbase(start, end, n, base) result(res)
-      real(qp), intent(in) :: start
-      real(qp), intent(in) :: end
-      integer, intent(in) :: n
-      real(qp), intent(in) :: base
-      ! real(qp) endpoints + real(qp) base = real(qp) result
-      real(qp) :: res(max(n, 0))
-    end function logspace_1_rqp_n_rbase
-
-    module function logspace_1_rqp_n_cbase(start, end, n, base) result(res)
-      real(qp), intent(in) :: start
-      real(qp), intent(in) :: end
-      integer, intent(in) :: n
-      complex(qp), intent(in) :: base
-      ! real(qp) endpoints + complex(qp) base = complex(qp) result
-      real(qp) :: res(max(n, 0))
-    end function logspace_1_rqp_n_cbase
-
-    module function logspace_1_rqp_n_ibase(start, end, n, base) result(res)
-      real(qp), intent(in) :: start
-      real(qp), intent(in) :: end
-      integer, intent(in) :: n
-      integer, intent(in) :: base
-      ! real(qp) endpoints + integer base = real(qp) result
-      real(qp) :: res(max(n, 0))
-    end function logspace_1_rqp_n_ibase
     ! Generate logarithmically spaced sequence from sp base to the powers
     ! of sp start and end. [base^start, ... , base^end]
     ! Different combinations of parameter types will lead to different result types.
     ! Those combinations are indicated in the body of each function.
-    module function logspace_1_csp_n_rbase(start, end, n, base) result(res)
+    pure module function logspace_1_csp_n_rbase(start, end, n, base) result(res)
       complex(sp), intent(in) :: start
       complex(sp), intent(in) :: end
       integer, intent(in) :: n
@@ -406,7 +318,7 @@ module stdlib_math
       complex(sp) :: res(max(n, 0))
     end function logspace_1_csp_n_rbase
 
-    module function logspace_1_csp_n_cbase(start, end, n, base) result(res)
+    pure module function logspace_1_csp_n_cbase(start, end, n, base) result(res)
       complex(sp), intent(in) :: start
       complex(sp), intent(in) :: end
       integer, intent(in) :: n
@@ -415,7 +327,7 @@ module stdlib_math
       complex(sp) :: res(max(n, 0))
     end function logspace_1_csp_n_cbase
 
-    module function logspace_1_csp_n_ibase(start, end, n, base) result(res)
+    pure module function logspace_1_csp_n_ibase(start, end, n, base) result(res)
       complex(sp), intent(in) :: start
       complex(sp), intent(in) :: end
       integer, intent(in) :: n
@@ -427,7 +339,7 @@ module stdlib_math
     ! of dp start and end. [base^start, ... , base^end]
     ! Different combinations of parameter types will lead to different result types.
     ! Those combinations are indicated in the body of each function.
-    module function logspace_1_cdp_n_rbase(start, end, n, base) result(res)
+    pure module function logspace_1_cdp_n_rbase(start, end, n, base) result(res)
       complex(dp), intent(in) :: start
       complex(dp), intent(in) :: end
       integer, intent(in) :: n
@@ -436,7 +348,7 @@ module stdlib_math
       complex(dp) :: res(max(n, 0))
     end function logspace_1_cdp_n_rbase
 
-    module function logspace_1_cdp_n_cbase(start, end, n, base) result(res)
+    pure module function logspace_1_cdp_n_cbase(start, end, n, base) result(res)
       complex(dp), intent(in) :: start
       complex(dp), intent(in) :: end
       integer, intent(in) :: n
@@ -445,7 +357,7 @@ module stdlib_math
       complex(dp) :: res(max(n, 0))
     end function logspace_1_cdp_n_cbase
 
-    module function logspace_1_cdp_n_ibase(start, end, n, base) result(res)
+    pure module function logspace_1_cdp_n_ibase(start, end, n, base) result(res)
       complex(dp), intent(in) :: start
       complex(dp), intent(in) :: end
       integer, intent(in) :: n
@@ -453,41 +365,11 @@ module stdlib_math
       ! complex(dp) endpoints + integer base = complex(dp) result
       complex(dp) :: res(max(n, 0))
     end function logspace_1_cdp_n_ibase
-    ! Generate logarithmically spaced sequence from qp base to the powers
-    ! of qp start and end. [base^start, ... , base^end]
+    ! Generate logarithmically spaced sequence from dp base to the powers
+    ! of dp start and end. [base^start, ... , base^end]
     ! Different combinations of parameter types will lead to different result types.
     ! Those combinations are indicated in the body of each function.
-    module function logspace_1_cqp_n_rbase(start, end, n, base) result(res)
-      complex(qp), intent(in) :: start
-      complex(qp), intent(in) :: end
-      integer, intent(in) :: n
-      real(qp), intent(in) :: base
-      ! complex(qp) endpoints + real(qp) base = complex(qp) result
-      complex(qp) :: res(max(n, 0))
-    end function logspace_1_cqp_n_rbase
-
-    module function logspace_1_cqp_n_cbase(start, end, n, base) result(res)
-      complex(qp), intent(in) :: start
-      complex(qp), intent(in) :: end
-      integer, intent(in) :: n
-      complex(qp), intent(in) :: base
-      ! complex(qp) endpoints + complex(qp) base = complex(qp) result
-      complex(qp) :: res(max(n, 0))
-    end function logspace_1_cqp_n_cbase
-
-    module function logspace_1_cqp_n_ibase(start, end, n, base) result(res)
-      complex(qp), intent(in) :: start
-      complex(qp), intent(in) :: end
-      integer, intent(in) :: n
-      integer, intent(in) :: base
-      ! complex(qp) endpoints + integer base = complex(qp) result
-      complex(qp) :: res(max(n, 0))
-    end function logspace_1_cqp_n_ibase
-    ! Generate logarithmically spaced sequence from qp base to the powers
-    ! of qp start and end. [base^start, ... , base^end]
-    ! Different combinations of parameter types will lead to different result types.
-    ! Those combinations are indicated in the body of each function.
-    module function logspace_1_iint32_n_rspbase(start, end, n, base) result(res)
+    pure module function logspace_1_iint32_n_rspbase(start, end, n, base) result(res)
       integer, intent(in) :: start
       integer, intent(in) :: end
       integer, intent(in) :: n
@@ -496,7 +378,7 @@ module stdlib_math
       real(sp) :: res(max(n, 0))
     end function logspace_1_iint32_n_rspbase
 
-    module function logspace_1_iint32_n_cspbase(start, end, n, base) result(res)
+    pure module function logspace_1_iint32_n_cspbase(start, end, n, base) result(res)
       integer, intent(in) :: start
       integer, intent(in) :: end
       integer, intent(in) :: n
@@ -504,7 +386,7 @@ module stdlib_math
       ! integer endpoints + complex(sp) base = complex(sp) result
       complex(sp) :: res(max(n, 0))
     end function logspace_1_iint32_n_cspbase
-    module function logspace_1_iint32_n_rdpbase(start, end, n, base) result(res)
+    pure module function logspace_1_iint32_n_rdpbase(start, end, n, base) result(res)
       integer, intent(in) :: start
       integer, intent(in) :: end
       integer, intent(in) :: n
@@ -513,7 +395,7 @@ module stdlib_math
       real(dp) :: res(max(n, 0))
     end function logspace_1_iint32_n_rdpbase
 
-    module function logspace_1_iint32_n_cdpbase(start, end, n, base) result(res)
+    pure module function logspace_1_iint32_n_cdpbase(start, end, n, base) result(res)
       integer, intent(in) :: start
       integer, intent(in) :: end
       integer, intent(in) :: n
@@ -521,25 +403,8 @@ module stdlib_math
       ! integer endpoints + complex(dp) base = complex(dp) result
       complex(dp) :: res(max(n, 0))
     end function logspace_1_iint32_n_cdpbase
-    module function logspace_1_iint32_n_rqpbase(start, end, n, base) result(res)
-      integer, intent(in) :: start
-      integer, intent(in) :: end
-      integer, intent(in) :: n
-      real(qp), intent(in) :: base
-      ! integer endpoints + real(qp) base = real(qp) result
-      real(qp) :: res(max(n, 0))
-    end function logspace_1_iint32_n_rqpbase
 
-    module function logspace_1_iint32_n_cqpbase(start, end, n, base) result(res)
-      integer, intent(in) :: start
-      integer, intent(in) :: end
-      integer, intent(in) :: n
-      complex(qp), intent(in) :: base
-      ! integer endpoints + complex(qp) base = complex(qp) result
-      complex(qp) :: res(max(n, 0))
-    end function logspace_1_iint32_n_cqpbase
-
-    module function logspace_1_iint32_n_ibase(start, end, n, base) result(res)
+    pure module function logspace_1_iint32_n_ibase(start, end, n, base) result(res)
       integer, intent(in) :: start
       integer, intent(in) :: end
       integer, intent(in) :: n
@@ -567,11 +432,6 @@ module stdlib_math
             real(dp), intent(in), optional :: end, step
             real(dp), allocatable :: result(:)
         end function arange_r_dp
-        pure module function arange_r_qp(start, end, step) result(result)
-            real(qp), intent(in) :: start
-            real(qp), intent(in), optional :: end, step
-            real(qp), allocatable :: result(:)
-        end function arange_r_qp
         pure module function arange_i_int8(start, end, step) result(result)
             integer(int8), intent(in) :: start
             integer(int8), intent(in), optional :: end, step
@@ -649,15 +509,6 @@ contains
 
         res = max(min(x, xmax), xmin)
     end function clip_dp
-
-    elemental function clip_qp(x, xmin, xmax) result(res)
-        real(qp), intent(in) :: x
-        real(qp), intent(in) :: xmin
-        real(qp), intent(in) :: xmax
-        real(qp) :: res
-
-        res = max(min(x, xmax), xmin)
-    end function clip_qp
 
 
     !> Returns the greatest common divisor of two integers of kind int8
