@@ -254,6 +254,37 @@ contains
     end subroutine free_open_map
 
 
+    module subroutine get_all_open_keys(map, all_keys)
+!! Version: Experimental
+!!
+!! Returns all the keys contained in a hash map
+!! Arguments:
+!!     map - an open hash map
+!!     all_keys - all the keys contained in a hash map
+!
+        class(open_hashmap_type), intent(in) :: map
+        type(key_type), allocatable, intent(out) :: all_keys(:)
+        
+        integer(int32) :: num_keys
+        integer(int_index) :: i, key_idx
+
+        num_keys = map % entries()
+        allocate( all_keys(num_keys) )
+        if ( num_keys == 0 ) return
+
+        if ( allocated( map % inverse) ) then
+            key_idx = 1_int_index
+            do i=1_int_index, size( map % inverse, kind=int_index )
+                if ( associated( map % inverse(i) % target ) ) then
+                    all_keys(key_idx) = map % inverse(i) % target % key
+                    key_idx = key_idx + 1_int_index
+                end if
+            end do 
+        end if
+
+    end subroutine get_all_open_keys
+
+
     module subroutine get_other_open_data( map, key, other, exists )
 !! Version: Experimental
 !!
@@ -266,7 +297,7 @@ contains
 !
         class(open_hashmap_type), intent(inout) :: map
         type(key_type), intent(in)              :: key
-        type(other_type), intent(out)           :: other
+        class(*), allocatable, intent(out)      :: other
         logical, intent(out), optional          :: exists
 
         integer(int_index) :: inmap
@@ -283,8 +314,8 @@ contains
                     invalid_inmap
             end if
         else if ( associated( map % inverse(inmap) % target ) ) then
-            exists = .true.
-            call copy_other( map % inverse(inmap) % target % other, other )
+            if ( present(exists) ) exists = .true.
+            other = map % inverse(inmap) % target % other
         else
             if ( present(exists) ) then
                 exists = .false.
@@ -379,7 +410,7 @@ contains
 !!             greater than max_bits
 
         class(open_hashmap_type), intent(out)      :: map
-        procedure(hasher_fun)                      :: hasher
+        procedure(hasher_fun), optional            :: hasher
         integer, intent(in), optional              :: slots_bits
         integer(int32), intent(out), optional      :: status
 
@@ -393,8 +424,9 @@ contains
         map % call_count = 0
         map % probe_count = 0
         map % total_probes = 0
-
-        map % hasher => hasher
+        
+        ! Check if user has specified a hasher other than the default hasher.
+        if (present(hasher)) map % hasher => hasher        
 
         if ( present(slots_bits) ) then
             if ( slots_bits < default_bits .OR. &
@@ -460,6 +492,8 @@ contains
         end do
 
         call extend_map_entry_pool(map % cache)
+        
+        map % initialized = .true.
 
         if (present(status) ) status = success
 
@@ -494,7 +528,7 @@ contains
 !
         class(open_hashmap_type), intent(inout) :: map
         type(key_type), intent(in)              :: key
-        type(other_type), intent(in), optional  :: other
+        class(*), intent(in), optional          :: other
         logical, intent(out), optional          :: conflict
 
         type(open_map_entry_type), pointer :: new_ent
@@ -502,7 +536,10 @@ contains
         integer(int_hash)  :: hash_val
         integer(int_index) :: inmap, offset, test_slot
         character(*), parameter :: procedure = 'MAP_ENTRY'
-
+        
+        ! Check that map is initialized.  
+        if (.not. map % initialized) call init_open_map( map )
+        
         hash_val = map % hasher( key )
 
         if ( map % probe_count > map_probe_factor * map % call_count .or.   &
@@ -522,8 +559,7 @@ contains
                 call allocate_open_map_entry(map, new_ent)
                 new_ent % hash_val = hash_val
                 call copy_key( key, new_ent % key )
-                if ( present( other ) ) &
-                    call copy_other( other, new_ent % other )
+                if ( present( other ) ) new_ent % other = other
                 inmap = new_ent % inmap
                 map % inverse( inmap ) % target => new_ent
                 map % slots( test_slot ) = inmap
@@ -791,7 +827,7 @@ contains
 !
         class(open_hashmap_type), intent(inout) :: map
         type(key_type), intent(in)              :: key
-        type(other_type), intent(in)            :: other
+        class(*), intent(in)                    :: other
         logical, intent(out),optional           :: exists
 
         integer(int_index) :: inmap
@@ -809,11 +845,9 @@ contains
                     invalid_inmap
             end if
         else if ( associated( map % inverse(inmap) % target ) ) then
-            associate( target => map % inverse(inmap) % target )
-              call copy_other( other, target % other )
-              if ( present(exists) ) exists = .true.
-              return
-            end associate
+            map % inverse(inmap) % target % other = other
+            if ( present(exists) ) exists = .true.
+            return
         else
             error stop submodule_name // ' % ' // procedure // ': ' // &
                 invalid_inmap

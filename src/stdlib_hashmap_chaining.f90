@@ -284,6 +284,37 @@ contains
     end subroutine free_map_entry_pool
 
 
+    module subroutine get_all_chaining_keys(map, all_keys)
+!! Version: Experimental
+!!
+!! Returns all the keys contained in a hash map
+!! Arguments:
+!!     map - a chaining hash map
+!!     all_keys - all the keys contained in a hash map
+!
+        class(chaining_hashmap_type), intent(in) :: map
+        type(key_type), allocatable, intent(out) :: all_keys(:)
+        
+        integer(int32) :: num_keys
+        integer(int_index) :: i, key_idx
+
+        num_keys = map % entries()
+        allocate( all_keys(num_keys) )
+        if ( num_keys == 0 ) return
+
+        if( allocated( map % inverse ) ) then
+            key_idx = 1_int_index
+            do i=1_int_index, size( map % inverse, kind=int_index )
+                if ( associated( map % inverse(i) % target ) ) then
+                    all_keys(key_idx) = map % inverse(i) % target % key
+                    key_idx = key_idx + 1_int_index
+                end if
+            end do 
+        end if
+
+    end subroutine get_all_chaining_keys
+
+
     module subroutine get_other_chaining_data( map, key, other, exists )
 !! Version: Experimental
 !!
@@ -296,7 +327,7 @@ contains
 !
         class(chaining_hashmap_type), intent(inout) :: map
         type(key_type), intent(in)                  :: key
-        type(other_type), intent(out)               :: other
+        class(*), allocatable, intent(out)          :: other
         logical, intent(out), optional              :: exists
 
         integer(int_index) :: inmap
@@ -314,7 +345,7 @@ contains
             end if
         else if ( associated( map % inverse(inmap) % target ) ) then
             if (present(exists) ) exists = .true.
-            call copy_other( map % inverse(inmap) % target % other, other )
+            other = map % inverse(inmap) % target % other
         else
             if ( present(exists) ) then
                 exists = .false.
@@ -403,7 +434,7 @@ contains
 !!             greater than max_bits
 !
         class(chaining_hashmap_type), intent(out)  :: map
-        procedure(hasher_fun)                      :: hasher
+        procedure(hasher_fun), optional            :: hasher
         integer, intent(in), optional              :: slots_bits
         integer(int32), intent(out), optional      :: status
 
@@ -417,8 +448,9 @@ contains
         map % probe_count = 0
         map % total_probes = 0
 
-        map % hasher => hasher
-
+        ! Check if user has specified a hasher other than the default hasher.
+        if (present(hasher)) map % hasher => hasher      
+            
         call free_chaining_map( map )
 
         if ( present(slots_bits) ) then
@@ -471,6 +503,8 @@ contains
 
         call extend_map_entry_pool(map)
 
+        map % initialized = .true.
+        
         if (present(status) ) status = success
 
     end subroutine init_chaining_map
@@ -504,7 +538,7 @@ contains
 !
         class(chaining_hashmap_type), intent(inout) :: map
         type(key_type), intent(in)                  :: key
-        type(other_type), intent(in), optional      :: other
+        class(*), intent(in), optional              :: other
         logical, intent(out), optional              :: conflict
 
         integer(int_hash)                      :: hash_index
@@ -514,6 +548,9 @@ contains
         type(chaining_map_entry_type), pointer :: gentry, pentry, sentry
         character(*), parameter :: procedure = 'MAP_ENTRY'
 
+        ! Check that map is initialized.  
+        if (.not. map % initialized) call init_chaining_map( map )
+        
         hash_val = map % hasher( key )
 
         if ( map % probe_count > map_probe_factor * map % call_count ) then
@@ -537,8 +574,7 @@ contains
                 new_ent % next => map % slots(hash_index) % target
                 map % slots(hash_index) % target => new_ent
                 call copy_key( key, new_ent % key )
-                if ( present(other) ) call copy_other( other, new_ent % other )
-
+                if ( present(other) ) new_ent % other = other
                 if ( new_ent % inmap == 0 ) then
                     map % num_entries = map % num_entries + 1
                     inmap = map % num_entries
@@ -744,6 +780,7 @@ contains
         centry % next => bentry
         map % inverse(inmap) % target => null()
         map % num_free = map % num_free + 1
+        map % num_entries = map % num_entries - 1
 
     end subroutine remove_chaining_entry
 
@@ -761,7 +798,7 @@ contains
 !
         class(chaining_hashmap_type), intent(inout) :: map
         type(key_type), intent(in)                  :: key
-        type(other_type), intent(in)                :: other
+        class(*), intent(in)                        :: other
         logical, intent(out), optional              :: exists
 
         integer(int_index) :: inmap
@@ -778,11 +815,9 @@ contains
                     invalid_inmap
             end if
         else if ( associated( map % inverse(inmap) % target ) ) then
-            associate( target => map % inverse(inmap) % target )
-              call copy_other( other, target % other )
-              if ( present(exists) ) exists = .true.
-              return
-            end associate
+            map % inverse(inmap) % target % other = other
+            if ( present(exists) ) exists = .true.
+            return
         else
             error stop submodule_name // ' % ' // procedure // ': ' // &
                 invalid_inmap

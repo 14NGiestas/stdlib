@@ -16,7 +16,15 @@ module stdlib_hashmaps
         int32,              &
         int64
 
-    use stdlib_hashmap_wrappers
+    use stdlib_hashmap_wrappers, only: &
+        copy_key,                &
+        fibonacci_hash,          &
+        default_hasher => fnv_1_hasher,            &
+        hasher_fun,              &
+        operator(==),            &
+        set,                     &
+        key_type,                &
+        int_hash
 
     implicit none
 
@@ -25,7 +33,6 @@ module stdlib_hashmaps
 !! Public data_types
     public ::                  &
         chaining_hashmap_type, &
-        hashmap_type,          &
         open_hashmap_type
 
 !! Values that parameterize David Chase's empirical SLOT expansion code
@@ -84,32 +91,78 @@ module stdlib_hashmaps
 !! Number of elements in the free_list
         integer(int32)     :: nbits = default_bits
 !! Number of bits used to address the slots
-        procedure(hasher_fun), pointer, nopass :: hasher => fnv_1_hasher
+        procedure(hasher_fun), pointer, nopass :: hasher => default_hasher
 !! Hash function
-
+        logical            :: initialized = .false. 
+        
     contains
-
         procedure, non_overridable, pass(map) :: calls
         procedure, non_overridable, pass(map) :: entries
         procedure, non_overridable, pass(map) :: map_probes
         procedure, non_overridable, pass(map) :: num_slots
         procedure, non_overridable, pass(map) :: slots_bits
-        procedure(get_other), deferred, pass(map)    :: get_other_data
-        procedure(init_map), deferred, pass(map)     :: init
-        procedure(key_test), deferred, pass(map)     :: key_test
-        procedure(loading), deferred, pass(map)      :: loading
-        procedure(map_entry), deferred, pass(map)    :: map_entry
-        procedure(rehash_map), deferred, pass(map)   :: rehash
-        procedure(remove_entry), deferred, pass(map) :: remove
-        procedure(set_other), deferred, pass(map)    :: set_other_data
-        procedure(total_depth), deferred, pass(map)  :: total_depth
-
+        procedure(get_all_keys), deferred, pass(map)        :: get_all_keys
+        procedure(init_map), deferred, pass(map)            :: init
+        procedure(loading), deferred, pass(map)             :: loading
+        procedure(rehash_map), deferred, pass(map)          :: rehash
+        procedure(total_depth), deferred, pass(map)         :: total_depth
+    
+        !! Key_test procedures.
+        procedure(key_key_test), deferred, pass(map) :: key_key_test
+        procedure, non_overridable, pass(map) :: int8_key_test
+        procedure, non_overridable, pass(map) :: int32_key_test
+        procedure, non_overridable, pass(map) :: char_key_test
+        generic, public :: key_test => key_key_test, int8_key_test, int32_key_test, char_key_test
+        
+        ! Map_entry procedures
+        procedure(key_map_entry), deferred, pass(map) :: key_map_entry
+        procedure, non_overridable, pass(map) :: int8_map_entry
+        procedure, non_overridable, pass(map) :: int32_map_entry
+        procedure, non_overridable, pass(map) :: char_map_entry
+        generic, public :: map_entry => key_map_entry, int8_map_entry, int32_map_entry, char_map_entry
+        
+        ! Get_other_data procedures
+        procedure(key_get_other_data), deferred, pass(map) :: key_get_other_data
+        procedure, non_overridable, pass(map) :: int8_get_other_data
+        procedure, non_overridable, pass(map) :: int32_get_other_data
+        procedure, non_overridable, pass(map) :: char_get_other_data
+        generic, public :: get_other_data => key_get_other_data, int8_get_other_data, int32_get_other_data, char_get_other_data
+        
+        ! Key_remove_entry procedures
+        procedure(key_remove_entry), deferred, pass(map) :: key_remove_entry
+        procedure, non_overridable, pass(map) :: int8_remove_entry
+        procedure, non_overridable, pass(map) :: int32_remove_entry
+        procedure, non_overridable, pass(map) :: char_remove_entry
+        generic, public :: remove => key_remove_entry, int8_remove_entry, int32_remove_entry, char_remove_entry
+        
+        ! Set_other_data procedures
+        procedure(key_set_other_data), deferred, pass(map)  :: key_set_other_data
+        procedure, non_overridable, pass(map) :: int8_set_other_data
+        procedure, non_overridable, pass(map) :: int32_set_other_data
+        procedure, non_overridable, pass(map) :: char_set_other_data
+        generic, public :: set_other_data => key_set_other_data, int8_set_other_data, int32_set_other_data, char_set_other_data
+        
     end type hashmap_type
 
 
     abstract interface
 
-        subroutine get_other( map, key, other, exists )
+        subroutine get_all_keys(map, all_keys)
+!! Version: Experimental
+!!
+!! Returns the all keys contained in a hash map
+!! ([Specifications](../page/specs/stdlib_hashmaps.html#get_all_keys-returns-all-the-keys-contained-in-a-map))
+!!
+!! Arguments:
+!!     map - a hash map
+!!     all_keys - all the keys contained in a hash map
+!
+            import hashmap_type, key_type
+            class(hashmap_type), intent(in) :: map
+            type(key_type), allocatable, intent(out) :: all_keys(:)
+        end subroutine get_all_keys
+
+        subroutine key_get_other_data( map, key, other, exists )
 !! Version: Experimental
 !!
 !! Returns the other data associated with the inverse table index
@@ -119,12 +172,12 @@ module stdlib_hashmaps
 !!     other  - the other data associated with the key
 !!     exists - a logical flag indicating whether an entry with that key exists
 !
-            import hashmap_type, key_type, other_type
+            import hashmap_type, key_type
             class(hashmap_type), intent(inout) :: map
             type(key_type), intent(in)         :: key
-            type(other_type), intent(out)      :: other
+            class(*), allocatable, intent(out)      :: other
             logical, intent(out), optional     :: exists
-        end subroutine get_other
+        end subroutine key_get_other_data
 
         subroutine init_map( map,         &
                              hasher,      &
@@ -150,12 +203,12 @@ module stdlib_hashmaps
 !
             import hashmap_type, hasher_fun, int32
             class(hashmap_type), intent(out)     :: map
-            procedure(hasher_fun)                 :: hasher
+            procedure(hasher_fun), optional      :: hasher
             integer, intent(in), optional         :: slots_bits
             integer(int32), intent(out), optional :: status
         end subroutine init_map
 
-        subroutine key_test(map, key, present)
+        subroutine key_key_test(map, key, present)
 !! Version: Experimental
 !!
 !! Returns a logical flag indicating whether KEY exists in the hash map
@@ -170,8 +223,9 @@ module stdlib_hashmaps
             class(hashmap_type), intent(inout) :: map
             type(key_type), intent(in)         :: key
             logical, intent(out)               :: present
-        end subroutine key_test
-
+        end subroutine key_key_test
+        
+                
         pure function loading( map )
 !! Version: Experimental
 !!
@@ -185,18 +239,18 @@ module stdlib_hashmaps
             real :: loading
         end function loading
 
-        subroutine map_entry(map, key, other, conflict)
+        subroutine key_map_entry(map, key, other, conflict)
 !! Version: Experimental
 !!
 !! Inserts an entry into the hash table
 !! ([Specifications](../page/specs/stdlib_hashmaps.html#map_entry-inserts-an-entry-into-the-hash-map))
 !!
-            import hashmap_type, key_type, other_type
+            import hashmap_type, key_type
             class(hashmap_type), intent(inout)     :: map
             type(key_type), intent(in)             :: key
-            type(other_type), intent(in), optional :: other
+            class(*), intent(in), optional         :: other
             logical, intent(out), optional         :: conflict
-        end subroutine map_entry
+        end subroutine key_map_entry
 
         subroutine rehash_map( map, hasher )
 !! Version: Experimental
@@ -211,7 +265,7 @@ module stdlib_hashmaps
             procedure(hasher_fun)              :: hasher
         end subroutine rehash_map
 
-        subroutine remove_entry(map, key, existed) ! Chase's delent
+        subroutine key_remove_entry(map, key, existed) ! Chase's delent
 !! Version: Experimental
 !!
 !! Remove the entry, if any, that has the key
@@ -225,9 +279,9 @@ module stdlib_hashmaps
             class(hashmap_type), intent(inout) :: map
             type(key_type), intent(in)         :: key
             logical, intent(out), optional     :: existed
-        end subroutine remove_entry
+        end subroutine key_remove_entry
 
-        subroutine set_other( map, key, other, exists )
+        subroutine key_set_other_data( map, key, other, exists )
 !! Version: Experimental
 !!
 !! Change the other data associated with the key
@@ -239,12 +293,12 @@ module stdlib_hashmaps
 !!              in the map
 !!
 !
-            import hashmap_type, key_type, other_type
+            import hashmap_type, key_type
             class(hashmap_type), intent(inout) :: map
             type(key_type), intent(in)         :: key
-            type(other_type), intent(in)       :: other
+            class(*), intent(in)               :: other
             logical, intent(out), optional     :: exists
-        end subroutine set_other
+        end subroutine key_set_other_data
 
         function total_depth( map )
 !! Version: Experimental
@@ -256,7 +310,7 @@ module stdlib_hashmaps
 !!     map - a hash map
             import hashmap_type, int64
             class(hashmap_type), intent(in) :: map
-            integer(int64)                   :: total_depth
+            integer(int64)                  :: total_depth
         end function total_depth
 
     end interface
@@ -273,7 +327,7 @@ module stdlib_hashmaps
 !! Full hash value
         type(key_type)     :: key
 !! The entry's key
-        type(other_type)   :: other
+        class(*), allocatable :: other
 !! Other entry data
         integer(int_index) :: inmap
 !! Index into inverse table
@@ -319,15 +373,16 @@ module stdlib_hashmaps
         type(chaining_map_entry_ptr), allocatable :: slots(:)
 !! Array of bucket lists Note # slots=size(slots)
     contains
-        procedure :: get_other_data => get_other_chaining_data
+        procedure :: get_all_keys => get_all_chaining_keys
+        procedure :: key_get_other_data => get_other_chaining_data
         procedure :: init => init_chaining_map
         procedure :: loading => chaining_loading
-        procedure :: map_entry => map_chain_entry
+        procedure :: key_map_entry => map_chain_entry
         procedure :: rehash => rehash_chaining_map
-        procedure :: remove => remove_chaining_entry
-        procedure :: set_other_data => set_other_chaining_data
+        procedure :: key_remove_entry => remove_chaining_entry
+        procedure :: key_set_other_data => set_other_chaining_data
         procedure :: total_depth => total_chaining_depth
-        procedure :: key_test => chaining_key_test
+        procedure :: key_key_test => chaining_key_test
         final     :: free_chaining_map
     end type chaining_hashmap_type
 
@@ -345,6 +400,19 @@ module stdlib_hashmaps
         end subroutine free_chaining_map
 
 
+        module subroutine get_all_chaining_keys(map, all_keys)
+!! Version: Experimental
+!!
+!! Returns all the keys contained in a hashmap
+!! Arguments:
+!!     map - an chaining hash map
+!!     all_keys - all the keys contained in a hash map
+!
+            class(chaining_hashmap_type), intent(in) :: map
+            type(key_type), allocatable, intent(out) :: all_keys(:)
+        end subroutine get_all_chaining_keys
+
+
         module subroutine get_other_chaining_data( map, key, other, exists )
 !! Version: Experimental
 !!
@@ -357,7 +425,7 @@ module stdlib_hashmaps
 !
             class(chaining_hashmap_type), intent(inout) :: map
             type(key_type), intent(in)                  :: key
-            type(other_type), intent(out)               :: other
+            class(*), allocatable, intent(out)          :: other
             logical, intent(out), optional              :: exists
         end subroutine get_other_chaining_data
 
@@ -382,7 +450,7 @@ module stdlib_hashmaps
 !!             greater than max_bits
 !
             class(chaining_hashmap_type), intent(out)  :: map
-            procedure(hasher_fun)                      :: hasher
+            procedure(hasher_fun), optional            :: hasher
             integer, intent(in), optional              :: slots_bits
             integer(int32), intent(out), optional      :: status
         end subroutine init_chaining_map
@@ -426,7 +494,7 @@ module stdlib_hashmaps
 !
             class(chaining_hashmap_type), intent(inout) :: map
             type(key_type), intent(in)             :: key
-            type(other_type), intent(in), optional :: other
+            class(*), intent(in), optional         :: other
             logical, intent(out), optional         :: conflict
         end subroutine map_chain_entry
 
@@ -473,7 +541,7 @@ module stdlib_hashmaps
 !
             class(chaining_hashmap_type), intent(inout) :: map
             type(key_type), intent(in)                  :: key
-            type(other_type), intent(in)                :: other
+            class(*), intent(in)                        :: other
             logical, intent(out), optional              :: exists
         end subroutine set_other_chaining_data
 
@@ -503,7 +571,7 @@ module stdlib_hashmaps
 !! Full hash value
         type(key_type)    :: key
 !! Hash entry key
-        type(other_type)  :: other
+        class(*), allocatable :: other
 !! Other entry data
         integer(int_index) :: inmap
 !! Index into inverse table
@@ -556,15 +624,16 @@ module stdlib_hashmaps
         integer(int_index), allocatable        :: slots(:)
 !! Array of indices to the inverse Note # slots=size(slots)
     contains
-        procedure :: get_other_data => get_other_open_data
+        procedure :: get_all_keys => get_all_open_keys
+        procedure :: key_get_other_data => get_other_open_data
         procedure :: init => init_open_map
         procedure :: loading => open_loading
-        procedure :: map_entry => map_open_entry
+        procedure :: key_map_entry => map_open_entry
         procedure :: rehash => rehash_open_map
-        procedure :: remove => remove_open_entry
-        procedure :: set_other_data => set_other_open_data
+        procedure :: key_remove_entry => remove_open_entry
+        procedure :: key_set_other_data => set_other_open_data
         procedure :: total_depth => total_open_depth
-        procedure :: key_test => open_key_test
+        procedure :: key_key_test => open_key_test
         final     :: free_open_map
     end type open_hashmap_type
 
@@ -581,6 +650,19 @@ module stdlib_hashmaps
         end subroutine free_open_map
 
 
+        module subroutine get_all_open_keys(map, all_keys)
+!! Version: Experimental
+!!
+!! Returns all the keys contained in a hashmap
+!! Arguments:
+!!     map - an open hash map
+!!     all_keys - all the keys contained in a hash map
+!
+            class(open_hashmap_type), intent(in) :: map
+            type(key_type), allocatable, intent(out) :: all_keys(:)
+        end subroutine get_all_open_keys
+
+
         module subroutine get_other_open_data( map, key, other, exists )
 !! Version: Experimental
 !!
@@ -593,7 +675,7 @@ module stdlib_hashmaps
 !
             class(open_hashmap_type), intent(inout) :: map
             type(key_type), intent(in)              :: key
-            type(other_type), intent(out)           :: other
+            class(*), allocatable, intent(out)      :: other
             logical, intent(out), optional          :: exists
         end subroutine get_other_open_data
 
@@ -618,7 +700,7 @@ module stdlib_hashmaps
 !!             greater than max_bits
 
             class(open_hashmap_type), intent(out)      :: map
-            procedure(hasher_fun)                      :: hasher
+            procedure(hasher_fun), optional            :: hasher
             integer, intent(in), optional              :: slots_bits
             integer(int32), intent(out), optional      :: status
         end subroutine init_open_map
@@ -663,7 +745,7 @@ module stdlib_hashmaps
 !
             class(open_hashmap_type), intent(inout) :: map
             type(key_type), intent(in)              :: key
-            type(other_type), intent(in), optional  :: other
+            class(*), intent(in), optional          :: other
             logical, intent(out), optional          :: conflict
         end subroutine map_open_entry
 
@@ -708,7 +790,7 @@ module stdlib_hashmaps
 !
             class(open_hashmap_type), intent(inout) :: map
             type(key_type), intent(in)              :: key
-            type(other_type), intent(in)            :: other
+            class(*), intent(in)                    :: other
             logical, intent(out), optional          :: exists
         end subroutine set_other_open_data
 
@@ -726,9 +808,348 @@ module stdlib_hashmaps
 
     end interface
 
-contains
+    
+    contains
+    
+    
+        subroutine int8_get_other_data( map, value, other, exists )
+!! Version: Experimental
+!!
+!! Int8 key generic interface for get_other_data function
 
-    pure function calls( map )
+            class(hashmap_type), intent(inout) :: map
+            integer(int8), intent(in)          :: value(:)
+            class(*), allocatable, intent(out) :: other
+            logical, intent(out), optional     :: exists
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_get_other_data( key, other, exists )
+            
+        end subroutine int8_get_other_data
+        
+        
+        subroutine int32_get_other_data( map, value, other, exists )
+!! Version: Experimental
+!!
+!! Int32 key generic interface for get_other_data function
+
+            class(hashmap_type), intent(inout) :: map
+            integer(int32), intent(in)         :: value(:)
+            class(*), allocatable, intent(out) :: other
+            logical, intent(out), optional     :: exists
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_get_other_data( key, other, exists )
+            
+        end subroutine int32_get_other_data
+
+        
+        subroutine char_get_other_data( map, value, other, exists )
+!! Version: Experimental
+!!
+!! Character key generic interface for get_other_data function
+
+            class(hashmap_type), intent(inout) :: map
+            character(*), intent(in)           :: value
+            class(*), allocatable, intent(out) :: other
+            logical, intent(out), optional     :: exists
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_get_other_data( key, other, exists )
+            
+        end subroutine char_get_other_data
+        
+        
+        subroutine int8_remove_entry(map, value, existed) ! Chase's delent
+!! Version: Experimental
+!!
+!! Remove the entry, if any, that has the key
+!! Arguments:
+!!    map     - the table from which the entry is to be removed
+!!    value   - the int8 array key to an entry
+!!    existed - a logical flag indicating whether an entry with the key
+!!              was present in the original map
+!
+            class(hashmap_type), intent(inout) :: map
+            integer(int8), intent(in)          :: value(:)
+            logical, intent(out), optional     :: existed
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_remove_entry( key, existed )
+            
+        end subroutine int8_remove_entry
+    
+        
+        subroutine int32_remove_entry(map, value, existed) ! Chase's delent
+!! Version: Experimental
+!!
+!! Remove the entry, if any, that has the key
+!! Arguments:
+!!    map     - the table from which the entry is to be removed
+!!    key     - the key to an entry
+!!    existed - a logical flag indicating whether an entry with the key
+!!              was present in the original map
+!
+            class(hashmap_type), intent(inout) :: map
+            integer(int32), intent(in)         :: value(:)
+            logical, intent(out), optional     :: existed
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_remove_entry( key, existed )
+            
+        end subroutine int32_remove_entry
+    
+        
+        subroutine char_remove_entry(map, value, existed) ! Chase's delent
+!! Version: Experimental
+!!
+!! Remove the entry, if any, that has the key
+!! Arguments:
+!!    map     - the table from which the entry is to be removed
+!!    key     - the key to an entry
+!!    existed - a logical flag indicating whether an entry with the key
+!!              was present in the original map
+!
+            class(hashmap_type), intent(inout) :: map
+            character(*), intent(in)           :: value
+            logical, intent(out), optional     :: existed
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_remove_entry( key, existed )
+            
+        end subroutine char_remove_entry
+        
+        
+        subroutine int8_map_entry(map, value, other, conflict)
+    !! Version: Experimental
+    !! Int8 generic interface for map entry
+    !! ([Specifications](../page/specs/stdlib_hashmaps.html#map_entry-inserts-an-entry-into-the-hash-map))
+    !!
+                class(hashmap_type), intent(inout)     :: map
+                integer(int8), intent(in)              :: value(:)
+                class(*), intent(in), optional         :: other
+                logical, intent(out), optional         :: conflict
+            
+                type(key_type)                         :: key
+            
+                call set( key, value )
+            
+                call map % key_map_entry( key, other, conflict )
+            
+        end subroutine int8_map_entry
+        
+        
+        subroutine int32_map_entry(map, value, other, conflict)
+!! Version: Experimental
+!!
+!! Inserts an entry into the hash table
+!! ([Specifications](../page/specs/stdlib_hashmaps.html#map_entry-inserts-an-entry-into-the-hash-map))
+!!
+            class(hashmap_type), intent(inout)     :: map
+            integer(int32), intent(in)             :: value(:)
+            class(*), intent(in), optional         :: other
+            logical, intent(out), optional         :: conflict
+            
+            type(key_type)                         :: key
+            
+            call set( key, value )
+            
+            call map % key_map_entry( key, other, conflict )
+            
+        end subroutine int32_map_entry
+    
+    
+        subroutine char_map_entry(map, value, other, conflict)
+!! Version: Experimental
+!!
+!! Inserts an entry into the hash table
+!! ([Specifications](../page/specs/stdlib_hashmaps.html#map_entry-inserts-an-entry-into-the-hash-map))
+!!
+            class(hashmap_type), intent(inout)     :: map
+            character(len=*), intent(in)           :: value
+            class(*), intent(in), optional         :: other
+            logical, intent(out), optional         :: conflict
+            
+            type(key_type)                         :: key
+            
+            call set( key, value )
+            
+            call map % key_map_entry( key, other, conflict )
+            
+        end subroutine char_map_entry
+    
+        
+        subroutine int8_key_test(map, value, present)
+!! Version: Experimental
+!!
+!! Returns a logical flag indicating whether KEY exists in the hash map
+!! ([Specifications](../page/specs/stdlib_hashmaps.html#key_test-indicates-whether-key-is-present))
+!!
+!! Arguments:
+!!     map     - the hash map of interest
+!!     value     - int8 array that is the key to lookup.  
+!!     present - a flag indicating whether key is present in the map
+!
+            class(hashmap_type), intent(inout) :: map
+            integer(int8), intent(in)          :: value(:)
+            logical, intent(out)               :: present
+            
+            type(key_type)                     :: key
+            
+            ! Generate key from int8 array.
+            call set( key, value )
+            
+            ! Call key test procedure.
+            call map % key_key_test( key, present )
+
+        end subroutine int8_key_test
+    
+    
+        subroutine int32_key_test(map, value, present)
+!! Version: Experimental
+!!
+!! Returns a logical flag indicating whether KEY exists in the hash map
+!! ([Specifications](../page/specs/stdlib_hashmaps.html#key_test-indicates-whether-key-is-present))
+!!
+!! Arguments:
+!!     map     - the hash map of interest
+!!     value     - int32 array that is the key to lookup.  
+!!     present - a flag indicating whether key is present in the map
+!
+            class(hashmap_type), intent(inout) :: map
+            integer(int32), intent(in)         :: value(:)
+            logical, intent(out)               :: present
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+
+            call map % key_key_test( key, present )
+
+        end subroutine int32_key_test
+    
+    
+        subroutine char_key_test(map, value, present)
+!! Version: Experimental
+!!
+!! Returns a logical flag indicating whether KEY exists in the hash map
+!! ([Specifications](../page/specs/stdlib_hashmaps.html#key_test-indicates-whether-key-is-present))
+!!
+!! Arguments:
+!!     map     - the hash map of interest
+!!     value     - char array that is the key to lookup.  
+!!     present - a flag indicating whether key is present in the map
+!
+            class(hashmap_type), intent(inout) :: map
+            character(*), intent(in)           :: value
+            logical, intent(out)               :: present
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_key_test( key, present )
+
+        end subroutine char_key_test
+        
+        
+        subroutine int8_set_other_data( map, value, other, exists )
+!! Version: Experimental
+!!
+!! Change the other data associated with the key
+!! Arguments:
+!!     map    - the map with the entry of interest
+!!     value  - the int8 array key to the entry inthe map
+!!     other  - the new data to be associated with the key
+!!     exists - a logical flag indicating whether the key is already entered
+!!              in the map
+!!
+!
+            class(hashmap_type), intent(inout) :: map
+            integer(int8), intent(in)          :: value(:)
+            class(*), intent(in)               :: other
+            logical, intent(out), optional     :: exists
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_set_other_data( key, other, exists )
+            
+        end subroutine int8_set_other_data
+    
+        
+        subroutine int32_set_other_data( map, value, other, exists )
+!! Version: Experimental
+!!
+!! Change the other data associated with the key
+!! Arguments:
+!!     map    - the map with the entry of interest
+!!     value  - the int32 array key to the entry inthe map
+!!     other  - the new data to be associated with the key
+!!     exists - a logical flag indicating whether the key is already entered
+!!              in the map
+!!
+!
+            class(hashmap_type), intent(inout) :: map
+            integer(int32), intent(in)         :: value(:)
+            class(*), intent(in)               :: other
+            logical, intent(out), optional     :: exists
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_set_other_data( key, other, exists )
+            
+        end subroutine int32_set_other_data
+    
+        
+        subroutine char_set_other_data( map, value, other, exists )
+!! Version: Experimental
+!!
+!! Change the other data associated with the key
+!! Arguments:
+!!     map    - the map with the entry of interest
+!!     value  - the char value key to the entry inthe map
+!!     other  - the new data to be associated with the key
+!!     exists - a logical flag indicating whether the key is already entered
+!!              in the map
+!!
+!
+            class(hashmap_type), intent(inout) :: map
+            character(*), intent(in)           :: value
+            class(*), intent(in)               :: other
+            logical, intent(out), optional     :: exists
+            
+            type(key_type)                     :: key
+            
+            call set( key, value )
+            
+            call map % key_set_other_data( key, other, exists )
+            
+        end subroutine char_set_other_data
+                
+                
+        pure function calls( map )
 !! Version: Experimental
 !!
 !! Returns the number of subroutine calls on an open hash map
@@ -736,14 +1157,14 @@ contains
 !!
 !! Arguments:
 !!     map - an open hash map
-        class(hashmap_type), intent(in) :: map
-        integer(int_calls)              :: calls
+            class(hashmap_type), intent(in) :: map
+            integer(int_calls)              :: calls
 
-        calls = map % call_count
+            calls = map % call_count
 
-    end function calls
+        end function calls
 
-    pure function entries( map )
+        pure function entries( map )
 !! Version: Experimental
 !!
 !! Returns the number of entries in a hash map
@@ -751,15 +1172,15 @@ contains
 !!
 !! Arguments:
 !!     map - an open hash map
-        class(hashmap_type), intent(in) :: map
-        integer(int_index) :: entries
+            class(hashmap_type), intent(in) :: map
+            integer(int_index) :: entries
 
-        entries = map % num_entries
+            entries = map % num_entries
 
-    end function entries
+        end function entries
 
 
-    pure function map_probes( map )
+        pure function map_probes( map )
 !! Version: Experimental
 !!
 !! Returns the total number of table probes on a hash map
@@ -767,15 +1188,15 @@ contains
 !!
 !! Arguments:
 !!     map - an open hash map
-        class(hashmap_type), intent(in) :: map
-        integer(int_calls) :: map_probes
+            class(hashmap_type), intent(in) :: map
+            integer(int_calls) :: map_probes
 
-        map_probes = map % total_probes + map % probe_count
+            map_probes = map % total_probes + map % probe_count
 
-    end function map_probes
+        end function map_probes
 
 
-    pure function num_slots( map )
+        pure function num_slots( map )
 !! Version: Experimental
 !!
 !! Returns the number of allocated slots in a hash map
@@ -783,15 +1204,15 @@ contains
 !!
 !! Arguments:
 !!     map - an open hash map
-        class(hashmap_type), intent(in) :: map
-        integer(int_index)              :: num_slots
+            class(hashmap_type), intent(in) :: map
+            integer(int_index)              :: num_slots
 
-        num_slots = 2**map % nbits
+            num_slots = 2**map % nbits
 
-    end function num_slots
+        end function num_slots
 
 
-    pure function slots_bits( map )
+        pure function slots_bits( map )
 !! Version: Experimental
 !!
 !! Returns the number of bits used to specify the number of allocated
@@ -800,12 +1221,12 @@ contains
 !!
 !! Arguments:
 !!     map - an open hash map
-        class(hashmap_type), intent(in) :: map
-        integer                              :: slots_bits
+            class(hashmap_type), intent(in) :: map
+            integer                         :: slots_bits
 
-        slots_bits = map % nbits
+            slots_bits = map % nbits
 
-    end function slots_bits
+        end function slots_bits
 
 
 end module stdlib_hashmaps
