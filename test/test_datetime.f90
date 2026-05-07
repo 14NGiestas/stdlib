@@ -522,6 +522,13 @@ subroutine test_format_timedelta(error)
         "[2d 5h 30s] -> '2 days, 05:00:30'")
     if (allocated(error)) return
 
+    ! Days + milliseconds: legacy days format keeps .mmm suffix
+    td = timedelta(days=2, hours=5, seconds=30, milliseconds=125)
+    call check(error, &
+        format_timedelta(td) == '2 days, 05:00:30.125', &
+        "[2d 5h 30s 125ms] -> '2 days, 05:00:30.125'")
+    if (allocated(error)) return
+
     ! No days: hours only
     td = timedelta(hours=1, minutes=2, seconds=3)
     call check(error, &
@@ -574,6 +581,13 @@ subroutine test_format_timedelta_compact(error)
     call check(error, &
         format_timedelta(td) == '42s', &
         "[42s] -> '42s'")
+    if (allocated(error)) return
+
+    ! Minute-second compact form with milliseconds
+    td = timedelta(minutes=5, seconds=30, milliseconds=125)
+    call check(error, &
+        format_timedelta(td) == '05:30.125', &
+        "[5m 30s 125ms] -> '05:30.125'")
     if (allocated(error)) return
 
     ! Negative duration: preserves original format since days /= 0
